@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  phone     String     @unique
+  password  String
+  name      String
+  role      String     @default("customer") // customer, admin, delivery
+  addresses Address[]
+  orders    Order[]
+  cart      CartItem[]
+  wishlist  Wishlist[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  street      String
+  apartment   String?
+  city        String
+  state       String
+  postalCode  String
+  isDefault   Boolean  @default(false)
+  addressType String   @default("home") // home, work, other
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Category {
+  id            String     @id @default(uuid())
+  name          String     @unique
+  slug          String     @unique
+  description   String?
+  mainCategory  String // groceries, stationery, medicines
+  image         String?
+  parentId      String?
+  parent        Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  subCategories Category[] @relation("SubCategories")
+  products      Product[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([parentId])
+}
+
+model Product {
+  id          String           @id @default(uuid())
+  name        String
+  slug        String           @unique
+  description String?          @db.Text
+  sku         String           @unique
+  categoryId  String
+  category    Category         @relation(fields: [categoryId], references: [id])
+  brand       String?
+  images      ProductImage[]
+  price       Float
+  mrp         Float // Maximum Retail Price
+  stock       Int              @default(0)
+  unit        String // kg, gram, piece, pack, etc.
+  minOrderQty Int              @default(1)
+  maxOrderQty Int?
+  isAvailable Boolean          @default(true)
+  isFeatured  Boolean          @default(false)
+  ratings     ProductRating[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  wishlist    Wishlist[]
+  variants    ProductVariant[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([categoryId])
+}
+
+model ProductVariant {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  name      String // e.g., "250g", "500g", "Red", "Blue"
+  price     Float
+  mrp       Float
+  stock     Int      @default(0)
+  sku       String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  imageUrl  String
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model ProductRating {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  userId    String
+  rating    Int // 1-5
+  review    String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([userId])
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+  deliveryAddress String      @db.Text
+  totalAmount     Float
+  discountAmount  Float       @default(0)
+  deliveryFee     Float       @default(0)
+  finalAmount     Float
+  paymentMethod   String // cod, card, upi, wallet
+  paymentStatus   String      @default("pending") // pending, paid, failed
+  orderStatus     String      @default("placed") // placed, confirmed, processing, out_for_delivery, delivered, cancelled
+  deliveryTime    DateTime?
+  deliverySlot    String? // "9AM-12PM", "12PM-3PM", etc.
+  notes           String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([orderStatus])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float // Price at the time of order
+  subtotal  Float
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model Promotion {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  description    String?
+  discountType   String // percentage, fixed
+  discountValue  Float
+  minOrderAmount Float?
+  maxDiscount    Float?
+  startDate      DateTime
+  endDate        DateTime
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String   @db.Text
+  type      String // order_update, promotion, general
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model DeliveryZone {
+  id             String   @id @default(uuid())
+  name           String
+  postalCodes    String   @db.Text // Comma-separated postal codes
+  minOrderAmount Float?
+  deliveryFee    Float    @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
